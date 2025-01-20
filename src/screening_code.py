@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 
-file_path = r"C:\python advenced\my_final_reposatory\data\1. initial_subjects_data\subject_1.csv"
+file_path = r"C:\python advenced\final-project\data\1. initial_subjects_data\subject_1.csv"
 
 # file type screening
 try:

@@ -145,7 +145,7 @@ def plot_histogram_with_outliers_and_save(df, file_path):
         summary_df = pd.DataFrame(outliers_summary)
 
         # שמירה לקובץ CSV
-        summary_df.to_csv(r'C:\python advenced\my_final_reposatory\data\3. passed_process_data\passed_process_data.csv', index=False)
+        summary_df.to_csv(r'C:\python advenced\final-project\data\3. passed_process_data\passed_process_data.csv', index=False)
         print(f"✅ data process done seccesfully")
 
     except Exception as e:
