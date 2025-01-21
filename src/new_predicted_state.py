@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
@@ -6,7 +7,7 @@ import matplotlib.pyplot as plt
 from collections import Counter
 
 def determine_emotional_state(tp9_outliers, tp10_outliers, af8_outliers, af7_outliers, wave):
-    #Determine emotional state based on outliers and wave type.
+    """Determine emotional state based on outliers and wave type."""
     state = None
 
     if wave == 'ALPHA':
@@ -41,39 +42,103 @@ def determine_emotional_state(tp9_outliers, tp10_outliers, af8_outliers, af7_out
 
     return state
 
-def load_and_prepare_data(file_path):
-    """Load and prepare the dataset with simplified logic."""
+def transform_participant_data(data):
+    """Transform participant data into the required format for prediction."""
+    try:
+        # Check and rename columns if needed
+        data.columns = data.columns.str.strip()
+        rename_mapping = {
+            'Electrode': 'Electrode',
+            'Wave Type': 'Wave Type',
+            'Outliers Count': 'Outliers Count'
+        }
+        data = data.rename(columns=rename_mapping)
+
+        # Pivot the data to have waves as columns and electrodes as rows
+        transformed_data = data.pivot(index='Electrode', columns='Wave Type', values='Outliers Count')
+
+        # Ensure all required waves are present, fill missing with 0
+        transformed_data = transformed_data.reindex(columns=['Alpha', 'Beta', 'Delta', 'Gamma', 'Theta'], fill_value=0)
+
+        # Rename columns for clarity
+        transformed_data.columns = ['ALPHA', 'BETA', 'DELTA', 'GAMMA', 'THETA']
+
+        # Reorder rows for required electrodes
+        transformed_data = transformed_data.reindex(['TP9', 'TP10', 'AF8', 'AF7'], fill_value=0)
+        return transformed_data
+    except Exception as e:
+        print(f"Error transforming participant data: {e}")
+        return None
+
+def load_training_data(file_path):
+    """Load and prepare the training dataset."""
     try:
         data = pd.read_excel(file_path, engine="openpyxl")
-    except Exception as e:
-        print(f"Error loading file: {file_path}. Error: {e}")
-        return None
+        # Ensure required columns exist
+        required_columns = ['TP9', 'TP10', 'AF8', 'AF7', 'wave']
+        if not all(col in data.columns for col in required_columns):
+            print(f"Error: Missing required columns in training data. Required columns: {required_columns}")
+            print(f"Available columns: {data.columns.tolist()}")
+            return None
 
-    try:
-        data['Emotional_State'] = data.apply(
-            lambda row: determine_emotional_state(
-                tp9_outliers=row['TP9'],
-                tp10_outliers=row['TP10'],
-                af8_outliers=row['AF8'],
-                af7_outliers=row['AF7'],
-                wave=row['wave']
-            ), axis=1
-        )
+        # Compute Emotional_State if not present
+        if 'Emotional_State' not in data.columns:
+            def safe_determine_state(row):
+                if pd.isnull(row['TP9']) or pd.isnull(row['TP10']) or pd.isnull(row['AF8']) or pd.isnull(row['AF7']) or pd.isnull(row['wave']):
+                    return None
+                return determine_emotional_state(
+                    tp9_outliers=row['TP9'],
+                    tp10_outliers=row['TP10'],
+                    af8_outliers=row['AF8'],
+                    af7_outliers=row['AF7'],
+                    wave=row['wave']
+                )
 
-        # Remove rows where Emotional_State is None
+            data['Emotional_State'] = data.apply(safe_determine_state, axis=1)
+
+        # Drop rows with missing Emotional_State
         data = data.dropna(subset=['Emotional_State'])
 
+        # Transform data to match participant structure
+        transformed_data = pd.DataFrame()
+        transformed_data['ALPHA'] = data[data['wave'].str.upper() == 'ALPHA']['TP9'].reset_index(drop=True)
+        transformed_data['BETA'] = data[data['wave'].str.upper() == 'BETA']['TP9'].reset_index(drop=True)
+        transformed_data['DELTA'] = data[data['wave'].str.upper() == 'DELTA']['TP9'].reset_index(drop=True)
+        transformed_data['GAMMA'] = data[data['wave'].str.upper() == 'GAMMA']['TP9'].reset_index(drop=True)
+        transformed_data['THETA'] = data[data['wave'].str.upper() == 'THETA']['TP9'].reset_index(drop=True)
+        transformed_data['Emotional_State'] = data['Emotional_State'].reset_index(drop=True)
+
+        return transformed_data
     except Exception as e:
-        print(f"Error processing data in file: {file_path}. Error: {e}")
+        print(f"Error loading training data: {file_path}. Error: {e}")
         return None
 
-    return data
+def load_participant_data(file_path):
+    """Load and prepare the participant dataset."""
+    try:
+        data = pd.read_csv(file_path)
+        # Ensure required columns exist
+        required_columns = ['Electrode', 'Wave Type', 'Outliers Count']
+        if not all(col in data.columns for col in required_columns):
+            print(f"Error: Missing required columns in participant data. Required columns: {required_columns}")
+            print(f"Available columns: {data.columns.tolist()}")
+            return None
+
+        # Transform data for prediction
+        transformed_data = transform_participant_data(data)
+        if transformed_data is None:
+            return None
+
+        return transformed_data
+    except Exception as e:
+        print(f"Error loading participant data: {file_path}. Error: {e}")
+        return None
 
 def train_random_forest(train_data):
-    #Train a Random Forest Classifier on the prepared data.
+    """Train a Random Forest Classifier on the prepared data."""
     try:
         # Select features and target
-        feature_columns = ['TP9', 'TP10', 'AF8', 'AF7']
+        feature_columns = ['ALPHA', 'BETA', 'DELTA', 'GAMMA', 'THETA']
         X = train_data[feature_columns]
         y = train_data['Emotional_State']
 
@@ -81,7 +146,7 @@ def train_random_forest(train_data):
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
         # Train Random Forest Classifier
-        model = RandomForestClassifier(n_estimators=200, random_state=42)
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
 
         # Print evaluation metrics
@@ -103,7 +168,7 @@ def train_random_forest(train_data):
         return None
 
 def plot_score_distribution(scores):
-    #Plot the score distribution for the participant.
+    """Plot the score distribution for the participant."""
     try:
         scores.plot(kind='bar', color='skyblue', edgecolor='black')
         plt.title('Score Distribution for Participant')
@@ -116,14 +181,14 @@ def plot_score_distribution(scores):
         print(f"Error during plotting. Error: {e}")
 
 def predict_emotional_state(model, participant_file):
-    #Predict emotional state for a participant using the trained model.
+    """Predict emotional state for a participant using the trained model."""
     try:
-        participant_data = load_and_prepare_data(participant_file)
+        participant_data = load_participant_data(participant_file)
         if participant_data is None:
             print("Failed to load participant data.")
             return None
 
-        feature_columns = ['TP9', 'TP10', 'AF8', 'AF7']
+        feature_columns = ['ALPHA', 'BETA', 'DELTA', 'GAMMA', 'THETA']
         X_participant = participant_data[feature_columns]
         predictions = model.predict(X_participant)
 
@@ -141,12 +206,12 @@ def predict_emotional_state(model, participant_file):
         return None
 
 def main():
-    #Main execution function.
-    train_file_path = r"C:\python advenced\final-project\data\4. data_ready_for_analysis\machine_training_data.xlsx"
-    participant_file_path = r"C:\python advenced\final-project\data\4. data_ready_for_analysis\ready_for_analysis.xlsx"
+    """Main execution function."""
+    train_file_path = r"C:\python advenced\final-project\data\3. passed_process_data\machine_training_data.xlsx"
+    participant_file_path = r"C:\python advenced\final-project\data\3. passed_process_data\passed_process_data.csv"
 
     # Step 1: Load and prepare the training data
-    train_data = load_and_prepare_data(train_file_path)
+    train_data = load_training_data(train_file_path)
     if train_data is None:
         print("Failed to prepare training data. Exiting.")
         return

@@ -4,34 +4,27 @@ from scipy.signal import resample
 import os
 import matplotlib.pyplot as plt
 
-# פונקציה לריסמפלינג של הנתונים (בין 150 ל-270Hz בצורה לא עקבית)
+#resample the data that was sampled inconsistently between 150 - 270 Hz into 200 Hz consistent
 def resample_eeg_data(file_path, target_sampling_rate=200):
     try:
         df = pd.read_csv(file_path)
-        
-        # ודא שהקובץ מכיל את העמודות הנכונות
         columns = ['TP9', 'TP10', 'AF8', 'AF7']
-        
         resampled_data = {}
-        
-        # ריסמפלינג לכל אחת מהאלקטרודות
+        #resample each of the electrodes
         for column in columns:
             current_length = len(df[column])
             resampled_data[column] = resample(df[column], int(target_sampling_rate * (df['timestamps'].iloc[-1] - df['timestamps'].iloc[0])))
-
-        # יצירת חותמת זמן חדשה מ-0 שניות
+        #creating new timestamps starting from 0 seconds with 1/200 sec defference between each sample
         new_timestamps = pd.Series(range(len(resampled_data['TP9']))) / target_sampling_rate
         resampled_df = pd.DataFrame(resampled_data)
         resampled_df.insert(0, 'timestamps', new_timestamps)
-
-        # החזרת ה-DataFrame המעודכן
         return resampled_df
     
     except Exception as e:
         print(f"Error while resampling: {e}")
         return None
 
-# פונקציה לחישוב EMA (ממוצע נע) להחלקה של הנתונים
+#smoothing the data with EMA with Alpha of 0.1 value (between 0.1-0.3 is acceptable)
 def calculate_ema(df, alpha=0.1):
     try:
         columns = ['TP9', 'TP10', 'AF8', 'AF7']
@@ -45,7 +38,7 @@ def calculate_ema(df, alpha=0.1):
         print(f"Error while calculating EMA: {e}")
         return None
 
-# פונקציה להסרת אאוטליירס בעזרת Z-score (כאשר Z > 2)
+#removing outliers samples above 2 SD for it being probably noise
 def remove_outliers_z(df, threshold=2):
     try:
         columns = ['TP9', 'TP10', 'AF8', 'AF7']
@@ -63,7 +56,7 @@ def remove_outliers_z(df, threshold=2):
         print(f"Error while removing outliers: {e}")
         return None, None
 
-# פונקציה למילוי ערכים חסרים
+#filling missing values from last stage with Bfil and Ffil - just for it to be consistent
 def fill_missing_values(df):
     try:
         cleaned_df = df.bfill(axis=0).ffill(axis=0)
@@ -72,7 +65,7 @@ def fill_missing_values(df):
         print(f"Error while filling missing value: {e}")
         return None
 
-# פונקציה ליצירת היסטוגרמה עם האאוטליירס ושמירה של המידע לקובץ CSV
+# plotting final outliers from FFT for histogram plotting
 def plot_histogram_with_outliers_and_save(df, file_path):
     try:
         columns = ['TP9', 'TP10', 'AF8', 'AF7']
@@ -84,30 +77,25 @@ def plot_histogram_with_outliers_and_save(df, file_path):
             'Beta': (13, 30),
             'Gamma': (30, 100)
         }
-
-        # מילון לאחסון אאוטליירס לכל אלקטרודה
         outliers_per_wave = {col: [] for col in columns}
         file_name = os.path.basename(file_path)
-
-        # יצירת גרף היסטוגרמה
+        #subplotting all 4 electrodes together and for each all of the wave lengths ranges
         fig, ax = plt.subplots(figsize=(12, 8))
         width = 0.15
-
-        # מילון לאחסון מספר האאוטליירס לכל אלקטרודה
+        #collecting outliers from FFT distribution
         summary_data = {col: {wave: 0 for wave in wave_bands.keys()} for col in columns}
-
-        # לולאה עבור כל אלקטרודה
+        #collecting from each electrode
         for i, column in enumerate(columns):
-            signal = df[column].dropna()  # הסרת נתונים חסרים
-            fs = 200  # תדר דגימה
+            signal = df[column].dropna()  #dropping empty values
+            fs = 200  #sampling freq
             n = len(signal)
-            freqs = np.fft.fftfreq(n, d=1/fs)  # חישוב התדרים
+            freqs = np.fft.fftfreq(n, d=1/fs)  #calculating freq
             fft_values = np.fft.fft(signal)
-            magnitudes = np.abs(fft_values)  # חישוב העוצמה של כל תדר
-            valid_freqs = (freqs >= 0.5) & (freqs <= 100)  # הגבלת טווח התדרים
+            magnitudes = np.abs(fft_values)  #calculating magnitude for each freq sample
+            valid_freqs = (freqs >= 0.5) & (freqs <= 100)  #limiting range of freqs to logicas brain pruduced freq (0/5-100)
             valid_magnitudes = magnitudes[valid_freqs]
             valid_freqs = freqs[valid_freqs]
-            top_5_percent_idx = np.argsort(valid_magnitudes)[-int(0.05 * len(valid_magnitudes)):]  # 5% העליונים
+            top_5_percent_idx = np.argsort(valid_magnitudes)[-int(0.05 * len(valid_magnitudes)):]  #using only significant top 5% magnitude outliers
 
             top_frequencies = valid_freqs[top_5_percent_idx]
             top_magnitudes = valid_magnitudes[top_5_percent_idx]
@@ -135,16 +123,14 @@ def plot_histogram_with_outliers_and_save(df, file_path):
         plt.tight_layout()
         plt.show()
 
-        # יצירת DataFrame עם נתוני האאוטליירס
+        #df from last calculation
         outliers_summary = []
         for column in columns:
             for wave in wave_bands.keys():
                 outliers_summary.append({'Electrode': column, 'Wave Type': wave, 'Outliers Count': summary_data[column][wave]})
-
-        # יצירת DataFrame עם המידע
         summary_df = pd.DataFrame(outliers_summary)
 
-        # שמירה לקובץ CSV
+        #saving the df into csv file for next stage sake and printing succesfull finish confirmation
         summary_df.to_csv(r'C:\python advenced\final-project\data\3. passed_process_data\passed_process_data.csv', index=False)
         print(f"✅ data process done seccesfully")
 

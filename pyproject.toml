@@ -11,6 +11,8 @@ numpy = "^1.21.2"
 pandas = "^1.3.3"
 scipy = "^1.7.1"
 matplotlib = "^3.4.3"
+scikit-learn = "^0.24.2"  # added for RandomForestClassifier and other ML tools
+openpyxl = "^3.0.7"  # added for reading Excel files
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
