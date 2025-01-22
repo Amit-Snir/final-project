@@ -1,4 +1,5 @@
 # final-project
+# Authors: Liron, Noy, Amit
 
 This Python code is designed to process EEG data recorded using the MUSE device and predict the mental state (e.g., concentrating, relaxing) of the subject based on the recorded signals. The code performs several steps including data preprocessing, feature extraction, and training a machine learning model to predict the emotional state. the process follows the below steps:
 
