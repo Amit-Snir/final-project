@@ -11,7 +11,7 @@ from screening_code import (
     save_updated_file
 )
 
-file_path = r"C:\python advenced\final-project\data\1. initial_subjects_data\subject_3.csv"
+file_path = r"C:\python advenced\final-project\data\1. initial_subjects_data\subject_1.csv"
 if not file_path.endswith('.csv'): exit(1)
 
 df = pd.read_csv(file_path)
@@ -20,7 +20,7 @@ df = filter_missing_data(df)
 df = check_for_non_numeric_data(df)
 df = fill_missing_data(df)
 
-save_updated_file(df, r"C:\python advenced\final-project\data\2. passed_screening_data\subject_3.csv")
+save_updated_file(df, r"C:\python advenced\final-project\data\2. passed_screening_data\subject_1.csv")
 
 #____________________________________________________________________________________________________________________________________#
 
@@ -35,7 +35,7 @@ from data_process_code import (
 )
 
 #what file to use - file of source
-file_path = r"C:\python advenced\final-project\data\2. passed_screening_data\subject_3.csv"
+file_path = r"C:\python advenced\final-project\data\2. passed_screening_data\subject_1.csv"
 
 df_resampled = resample_eeg_data(file_path)
 df_ema = calculate_ema(df_resampled)

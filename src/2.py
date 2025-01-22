@@ -149,52 +149,38 @@ def train_random_forest(train_data):
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
 
-        # Predict and evaluate the model
+        # Print evaluation metrics
         y_pred = model.predict(X_test)
+        print("Classification Report:")
+        print(classification_report(y_test, y_pred))
+        print("Confusion Matrix:")
+        print(confusion_matrix(y_test, y_pred))
 
-        # Get classification report as a dictionary
-        report = classification_report(y_test, y_pred, output_dict=True)
+        # Print feature importance
+        feature_importances = model.feature_importances_
+        print("Feature Importances:")
+        for feature, importance in zip(feature_columns, feature_importances):
+            print(f"{feature}: {importance}")
 
-        # Print the score for each emotional state (C, R, N)
-        print("Emotional State Scores:")
-        for state in ['C', 'R', 'N']:
-            if state in report:
-                print(f"{state}: Precision: {report[state]['precision']:.2f}, Recall: {report[state]['recall']:.2f}, F1-Score: {report[state]['f1-score']:.2f}")
-
-        return model, report
+        return model
     except Exception as e:
         print(f"Error during model training or evaluation. Error: {e}")
-        return None, None
+        return None
 
-def print_emotional_state_multiplication(report, state_counts):
-    """Print a dictionary with emotional states and the product of precision and count for each state."""
-    result = {}
-    for state, count in state_counts.items():
-        if state in report:
-            precision = report[state]['precision']
-            result[state] = precision * count
-    print(result)
-
-    # Plot the result dictionary with the emotional states and the precision * count values
-    plot_score_distribution(result)
-
-def plot_score_distribution(result):
-    """Plot the score distribution based on precision * count for each emotional state."""
+def plot_score_distribution(scores):
+    """Plot the score distribution for the participant."""
     try:
-        # Convert the result dictionary into a pandas Series for easier plotting
-        result_series = pd.Series(result)
-
-        result_series.plot(kind='bar', color='skyblue', edgecolor='black')
-        plt.title('Emotional State Scores (Precision * Count) for Participant')
+        scores.plot(kind='bar', color='skyblue', edgecolor='black')
+        plt.title('Score Distribution for Participant')
         plt.xlabel('Emotional Category', rotation=0)
         plt.xticks(rotation=0)
-        plt.ylabel('Score (Precision * Count)')
+        plt.ylabel('Score')
         plt.grid(axis='y')
         plt.show()
     except Exception as e:
         print(f"Error during plotting. Error: {e}")
 
-def predict_emotional_state(model, participant_file, report):
+def predict_emotional_state(model, participant_file):
     """Predict emotional state for a participant using the trained model."""
     try:
         participant_data = load_participant_data(participant_file)
@@ -211,9 +197,9 @@ def predict_emotional_state(model, participant_file, report):
         state_counts = Counter(predictions)
         print(f"Emotional State Counts: {state_counts}")
 
-        # Print the dictionary with emotional states and the product of precision and count
-        print_emotional_state_multiplication(report, state_counts)
-
+        # Plot the counts of emotional states
+        state_series = pd.Series(state_counts)
+        plot_score_distribution(state_series)
         return predictions
     except Exception as e:
         print(f"Error during prediction. Error: {e}")
@@ -231,13 +217,13 @@ def main():
         return
 
     # Step 2: Train Random Forest Classifier
-    model, report = train_random_forest(train_data)
+    model = train_random_forest(train_data)
     if model is None:
         print("Model training failed. Exiting.")
         return
 
     # Step 3: Predict emotional state for a participant
-    predict_emotional_state(model, participant_file_path, report)
+    predict_emotional_state(model, participant_file_path)
 
 if __name__ == "__main__":
     main()
